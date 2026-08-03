@@ -69,6 +69,12 @@ class TermEntry(Base):
     #: the field to the editorial roles.
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    #: Term, definition, synonyms, and NoGo alternatives, lowercased and with
+    #: diacritics stripped. Maintained by the service layer on every write —
+    #: searching inside a JSON column is not portable across the two
+    #: backends. → D16
+    search_text: Mapped[str] = mapped_column(Text, default="", server_default="")
+
     status: Mapped[TermStatus] = mapped_column(
         enum_column(TermStatus, "term_status"), default=TermStatus.DRAFT
     )

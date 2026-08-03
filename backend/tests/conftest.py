@@ -142,6 +142,35 @@ def sign_in(client: TestClient, email: str, password: str) -> None:
     assert response.status_code == 200, response.text
 
 
+@pytest.fixture
+def accounts(db: Session) -> dict[Role, User]:
+    """One active account per role, so permission tests can pick any."""
+    created = {}
+    for role in Role:
+        account = User(
+            email=f"{role.value}@example.org",
+            display_name=role.value.title(),
+            password_hash=hash_password(USER_PASSWORD),
+            role=role,
+        )
+        db.add(account)
+        created[role] = account
+    db.commit()
+    return created
+
+
+@pytest.fixture
+def as_role(client: TestClient, accounts: dict[Role, User]):
+    """Sign the shared client in as a given role."""
+
+    def sign_in_as(role: Role) -> User:
+        client.cookies.clear()
+        sign_in(client, accounts[role].email, USER_PASSWORD)
+        return accounts[role]
+
+    return sign_in_as
+
+
 def make_term(concept: Concept, user: User, language: str, term: str, **kwargs) -> TermEntry:
     return TermEntry(
         id=uuid.uuid4(),

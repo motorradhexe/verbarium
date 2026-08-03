@@ -9,8 +9,10 @@ translators, and cross-functional teams. AI-ready, not FULL-AI: every feature
 works without an AI provider, and AI enriches where you configure it with your
 own API key.
 
-**Status: early development.** Data model, migrations, authentication, and the
-first-run setup wizard are in place. Terminology features are next. See
+**Status: early development.** Data model, migrations, authentication, the
+setup wizard, and terminology management — concepts, term entries per language,
+the status workflow, change history, search and filters — are in place. Import,
+export, and AI enrichment are next. See
 [`REQUIREMENTS.md`](REQUIREMENTS.md)
 for the full scope and roadmap, [`STRUCTURE.md`](STRUCTURE.md) for the
 repository layout, and [`docs/DATA-MODEL-DECISIONS.md`](docs/DATA-MODEL-DECISIONS.md)

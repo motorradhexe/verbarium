@@ -17,6 +17,8 @@ which questions are still open.
 | `Open` | Genuine product decision, no default |
 
 D1 and D7–D10 were decided on 2026-08-03 and carry a **Decision** note.
+D17–D19 arose while implementing and follow the recommendation given at the
+time; say so if you want any of them the other way.
 
 | # | Question | Outcome |
 |---|---|---|
@@ -36,6 +38,9 @@ D1 and D7–D10 were decided on 2026-08-03 and carry a **Decision** note.
 | D14 | Content languages | Accepted — configurable from v1.0 |
 | D15 | Authentication | Accepted — local accounts, session cookie |
 | D16 | Full-text search | Accepted — portable implementation for v1.0 |
+| D17 | Concept status roll-up | Proposed — lowest status across languages |
+| D18 | Visibility of `notes` | Proposed — editorial roles only, blanked not omitted |
+| D19 | Editing an approved entry | Proposed — substantive edits require re-approval |
 
 ---
 
@@ -79,10 +84,7 @@ derived (not stored) or is replaced by the lifecycle field. Review queue,
 search visibility, and the language columns in the list view all key off the
 per-language status.
 
-**Open sub-question for implementation:** the roll-up shown on a concept needs
-a defined rule — most likely the lowest status across its languages, with
-missing languages counted as absent rather than as a status. Worth pinning
-down when the list view is built, not before.
+**Roll-up rule:** settled in D17.
 
 ---
 
@@ -423,3 +425,70 @@ wants to debug across two engines.
 
 Search must respect D10 — entries in progress are findable and badged, while
 exports and the published glossary stay approved-only.
+
+---
+
+## D17 — How a concept's status is derived
+
+**Status:** Proposed — implemented as recommended (2026-08-03)
+
+D1 put the review status on the term entry, which left open what a concept
+shows when its languages disagree.
+
+**Decision:** the lowest status across the concept's entries. German approved
+and English still a draft makes the concept a draft, so a filter for "not
+finished" finds everything that still needs work — the question the term list
+exists to answer.
+
+Two refinements the naive rule gets wrong:
+
+- **A missing language is a gap, not a status.** It does not enter the
+  calculation at all; the gap filter is what surfaces it.
+- **Rejected sits outside the scale.** One rejected translation must not make
+  a concept with an approved German entry look rejected, so rejected entries
+  are skipped — unless every entry is rejected, in which case the concept is.
+
+**Consequences:** the roll-up is computed, never stored, so it cannot drift
+out of sync with the entries. Sorting the term list by status therefore cannot
+use a column, which is fine at the sizes a termbase reaches.
+
+---
+
+## D18 — Who sees internal notes
+
+**Status:** Proposed — implemented as recommended (2026-08-03)
+
+`notes` is described as "internal remarks", but D10 made entries in progress
+visible to every role, which would have exposed them.
+
+**Decision:** visible from Editor upward. Below that the field is **blanked,
+not omitted** — the response keeps the same shape for every caller.
+
+Omitting the key per role was the first implementation and it did not survive
+contact with FastAPI: the route's `response_model` filters the response
+anyway, so the field vanished for everyone. Beyond that, a response whose keys
+depend on the caller would not match what OpenAPI documents, and a null
+reveals nothing about whether remarks exist.
+
+**Consequences:** field-level visibility lives in `app/api/presenters.py`, in
+one place, rather than being repeated per route.
+
+---
+
+## D19 — Editing an approved entry
+
+**Status:** Proposed — implemented as recommended (2026-08-03)
+
+Nothing said what happens when someone edits an entry that is already
+approved. Silently keeping the badge would make "Approved" mean "somebody once
+approved some version of this".
+
+**Decision:** changing `term`, `definition`, `synonyms`, or
+`nogo_alternatives` returns the entry to Draft, so it goes through review
+again. Changing `context_example`, `source`, or `notes` does not — correcting
+a source should not cost a review cycle.
+
+**Consequences:** the split is a judgement call about which fields carry the
+meaning a reviewer signed off on. It lives in `SUBSTANTIVE_FIELDS` in
+`app/services/workflow.py`, as one list to change if the boundary turns out
+to sit elsewhere in practice.

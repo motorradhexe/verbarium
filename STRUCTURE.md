@@ -1,8 +1,7 @@
 # Project Structure
 
-How the repository is laid out and where new code belongs. Nothing here is
-feature code yet — this is the skeleton the roadmap in `REQUIREMENTS.md`
-gets built into.
+How the repository is laid out and where new code belongs, following the
+roadmap in `REQUIREMENTS.md`.
 
 ## Top level
 
@@ -27,15 +26,20 @@ backend/
 │   ├── main.py           App factory, middleware, router registration
 │   ├── api/
 │   │   ├── deps.py       Database session, signed-in user, role checks
+│   │   ├── presenters.py Field-level visibility, in one place
 │   │   ├── router.py     Central router — feature routers register here
 │   │   └── routes/       One module per resource
 │   │       ├── health.py GET /health
 │   │       ├── setup.py  First-run wizard
 │   │       ├── auth.py   Login, logout, own profile and password
-│   │       └── users.py  Account management, Admin only
+│   │       ├── users.py  Account management, Admin only
+│   │       ├── domains.py Subject fields
+│   │       ├── concepts.py Concepts, the term list, adding entries
+│   │       └── terms.py  Entries, workflow, assignment, history
 │   ├── core/
 │   │   ├── config.py     Settings from environment variables
 │   │   ├── security.py   Password hashing, session tokens
+│   │   ├── text.py       Search normalisation
 │   │   └── languages.py  ISO 639-1 codes, generated
 │   ├── db/
 │   │   ├── base.py       Declarative base, naming convention, column helpers
@@ -138,6 +142,22 @@ router = APIRouter(dependencies=[Depends(require_role(Role.EDITOR))])
 Roles are cumulative — an Approver can do everything an Editor can, per
 `Role.rank`. If a role ever needs a permission a higher one lacks, that
 ordering has to be replaced with an explicit permission matrix.
+
+## The status workflow
+
+`app/services/workflow.py` holds the transition table — which statuses an
+action applies to, the role it needs, and whether a reason is mandatory. Routes
+raise its exceptions and map them to status codes; the distinction between
+"wrong status" (409), "wrong role" (403), and "comment missing" (422) is worth
+keeping.
+
+Each language runs its own cycle, so approving German says nothing about
+English (D1). The concept shows the lowest status across its entries, with
+missing languages counted as gaps rather than statuses (D17). A substantive
+edit to an approved entry returns it to Draft (D19).
+
+Status never moves through a plain update — only through
+`POST /api/terms/{id}/transition` — so the rules cannot be bypassed.
 
 **Not covered yet:** rate limiting on login. Argon2 makes each attempt
 expensive, which slows guessing considerably, but nothing stops an attacker
