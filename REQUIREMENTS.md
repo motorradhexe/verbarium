@@ -55,6 +55,16 @@ second instance. → D8
 | **Approver** | Final approval or rejection of terms |
 | **Admin** | Full workspace configuration, user management, field schema |
 
+### Authentication
+
+Local accounts: email as the login, passwords hashed with Argon2id,
+authentication by HTTP-only session cookie with session state in the database.
+Accounts are created by an Admin — there is no self-registration. The setup
+wizard creates the first Admin account.
+
+External identity providers (OIDC) are not part of v1.0 and can be added
+without schema changes to existing data. → D15
+
 ### Approval Workflow
 
 ```
@@ -216,8 +226,9 @@ origin *import*. → D11
 
 ## UI
 
-- **Languages:** German (DE) and English (EN) — selectable per user
-- **Search:** Full-text search across terms, definitions, synonyms, NoGo alternatives
+- **Interface language:** German (DE) and English (EN) — selectable per user. Distinct from the languages terms are written in. → D14
+- **Content languages:** Configured per workspace, changeable after setup, validated against ISO 639-1. The term list renders one column per configured language. → D14
+- **Search:** Full-text search across terms, definitions, synonyms, NoGo alternatives. One portable implementation for both database backends in v1.0 — normalised prefix and substring matching, without stemming or ranking. → D16
 - **Filter:** By language, domain, status, assignee, date range (created or changed, defaulting to changed → D13)
 
 ### Entry Management
@@ -263,9 +274,9 @@ reviewers do not duplicate each other's work. → D2, D12
 ## Roadmap
 
 ### v1.0 — Foundation
-- Auth + all six roles
-- Workspace concept
-- Concept/Term data model (DE + EN baseline, extensible to more languages)
+- Auth: local accounts, session cookie, all six roles
+- Workspace concept — one workspace per instance
+- Concept/Term data model, content languages configurable per workspace
 - NoGo alternatives, synonyms
 - Status workflow per language (Draft → Proposed → In Review → Approved / Rejected), with a rework loop and mandatory comment on rejection
 - Change history per term, review comments
@@ -277,7 +288,7 @@ reviewers do not duplicate each other's work. → D2, D12
 - Entries in progress visible to all roles, marked as unapproved
 - Export: CSV + TBX
 - Import: CSV, JSON, TBX
-- UI in DE + EN
+- Interface in DE + EN
 - Docker Compose, SQLite + PostgreSQL
 - Setup Wizard with sample data
 - MIT License
@@ -294,7 +305,8 @@ reviewers do not duplicate each other's work. → D2, D12
 
 ### v2.0 — Platform
 - Custom fields (configurable schema per workspace)
-- Additional languages beyond DE + EN
+- Additional interface translations beyond DE + EN (content languages are already configurable in v1.0 → D14)
+- Search with stemming and relevance ranking, backend-specific → D16
 - Domain-scoped role permissions
 - Glossary export: HTML + PDF
 - REST API for external tool integration
@@ -310,8 +322,8 @@ reviewers do not duplicate each other's work. → D2, D12
 ## Open Questions / TBD
 
 Data model and entry management questions are tracked with their options,
-recommendations, and outcomes in `docs/DATA-MODEL-DECISIONS.md`. D1 and D7–D10
-are settled; D2–D6 and D11–D13 stand as recommendations.
+recommendations, and outcomes in `docs/DATA-MODEL-DECISIONS.md`. D1, D7–D10 and
+D14–D16 are settled; D2–D6 and D11–D13 stand as recommendations.
 
 Still open:
 

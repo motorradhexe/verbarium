@@ -1,5 +1,7 @@
 # Verbarium
 
+[![CI](https://github.com/motorradhexe/verbarium/actions/workflows/ci.yml/badge.svg)](https://github.com/motorradhexe/verbarium/actions/workflows/ci.yml)
+
 > Terminology Management for People Who Care About Words
 
 Open-source, self-hosted terminology management for technical writers,

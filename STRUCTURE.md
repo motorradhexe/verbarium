@@ -8,6 +8,7 @@ gets built into.
 
 ```
 verbarium/
+├── .github/workflows/  CI: lint, tests on both databases, compose smoke test
 ├── backend/            FastAPI application (Python 3.11+)
 ├── frontend/           React application (Vite + TypeScript)
 ├── docs/               Design decisions and background
@@ -106,3 +107,17 @@ docker compose --profile postgres up    # PostgreSQL
 Both services bind-mount their source directory and run in development mode
 with hot reload. A production compose file (built frontend assets served by a
 web server, no bind mounts) is a separate concern and comes later.
+
+## CI
+
+`.github/workflows/ci.yml` runs on every push and pull request:
+
+| Job | What it checks |
+|---|---|
+| `backend` | ruff and pytest, once against SQLite and once against PostgreSQL |
+| `frontend` | `npm ci`, type check, production build, `npm audit` |
+| `stack` | `docker compose up` in both database configurations, asserting the health payload, the frontend shell, and the dev server proxy |
+
+The `stack` job is the one that matters for "does it actually run": it builds
+the images, starts the compose stack, and fails if `/health` does not report
+the expected database as connected.

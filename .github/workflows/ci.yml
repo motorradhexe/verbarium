@@ -1,0 +1,149 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (${{ matrix.database }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [sqlite, postgres]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+
+      - name: Start PostgreSQL
+        if: matrix.database == 'postgres'
+        run: |
+          docker run -d --name verbarium-postgres \
+            -e POSTGRES_USER=verbarium \
+            -e POSTGRES_PASSWORD=verbarium \
+            -e POSTGRES_DB=verbarium \
+            -p 5432:5432 \
+            --health-cmd "pg_isready -U verbarium" \
+            --health-interval 5s --health-timeout 5s --health-retries 10 \
+            postgres:16-alpine
+          for _ in $(seq 1 30); do
+            status=$(docker inspect -f '{{.State.Health.Status}}' verbarium-postgres)
+            [ "$status" = "healthy" ] && exit 0
+            sleep 2
+          done
+          echo "PostgreSQL did not become healthy" >&2
+          docker logs verbarium-postgres
+          exit 1
+
+      - name: Install
+        working-directory: backend
+        run: pip install -e ".[dev]"
+
+      - name: Lint
+        working-directory: backend
+        run: ruff check .
+
+      - name: Test
+        working-directory: backend
+        env:
+          VERBARIUM_DB_BACKEND: ${{ matrix.database }}
+          VERBARIUM_POSTGRES_HOST: localhost
+        run: pytest -q
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        working-directory: frontend
+        run: npm ci
+
+      - name: Type check and build
+        working-directory: frontend
+        run: npm run build
+
+      - name: Audit dependencies
+        working-directory: frontend
+        run: npm audit --audit-level=high
+
+  stack:
+    name: Docker Compose (${{ matrix.database }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [sqlite, postgres]
+    env:
+      VERBARIUM_DB_BACKEND: ${{ matrix.database }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Start the stack
+        run: |
+          if [ "${{ matrix.database }}" = "postgres" ]; then
+            docker compose --profile postgres up -d --build
+          else
+            docker compose up -d --build
+          fi
+
+      - name: Wait for the backend
+        run: |
+          for _ in $(seq 1 60); do
+            if curl -fsS http://localhost:8000/health -o health.json; then
+              cat health.json
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Backend health check never responded" >&2
+          exit 1
+
+      - name: Backend reports healthy on the expected database
+        run: |
+          jq -e '.status == "ok"' health.json
+          jq -e '.name == "Verbarium"' health.json
+          jq -e '.database.backend == "${{ matrix.database }}"' health.json
+          jq -e '.database.connected == true' health.json
+
+      - name: Frontend serves the app shell
+        run: |
+          for _ in $(seq 1 60); do
+            if curl -fsS http://localhost:5173/ -o index.html; then
+              grep -q "<title>Verbarium</title>" index.html
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Frontend never responded" >&2
+          exit 1
+
+      - name: Frontend proxies /health to the backend
+        run: curl -fsS http://localhost:5173/health | jq -e '.status == "ok"'
+
+      - name: Container logs
+        if: failure()
+        run: docker compose --profile postgres logs --no-color
+
+      - name: Tear down
+        if: always()
+        run: docker compose --profile postgres down -v

@@ -33,6 +33,9 @@ D1 and D7–D10 were decided on 2026-08-03 and carry a **Decision** note.
 | D11 | Import and workflow | Proposed — target status chosen per import run |
 | D12 | Entry management views | Proposed — bulk selection deferred to v1.1, rest v1.0 |
 | D13 | Date filter semantics | Proposed — created or changed, defaulting to changed |
+| D14 | Content languages | Accepted — configurable from v1.0 |
+| D15 | Authentication | Accepted — local accounts, session cookie |
+| D16 | Full-text search | Accepted — portable implementation for v1.0 |
 
 ---
 
@@ -345,3 +348,78 @@ absent.
 recently" is the more common question. Requires `updated_at` on `TermEntry`,
 which the current model only has on `ConceptEntry` even though the change
 history tracks term modifications.
+
+---
+
+## D14 — Content languages: fixed or configurable
+
+**Status:** Accepted — configurable from v1.0 (2026-08-03)
+
+`REQUIREMENTS.md` said three incompatible things: the setup wizard configures
+"workspace name and languages", v1.0 promises "DE + EN baseline, extensible to
+more languages", and v2.0 lists "Additional languages beyond DE + EN" as a
+feature still to come.
+
+It also used one word for two things. "Languages: German (DE) and English (EN)
+— selectable per user" under UI is the *interface* language. The languages a
+term is written in are a different axis entirely: a user reading the interface
+in German still maintains English terms.
+
+**Decision:** content languages are configured per workspace and can be
+changed after setup. `TermEntry.language` references the configured set rather
+than a fixed enum. The interface ships in DE and EN, chosen per user, and that
+is what v2.0's roadmap entry now refers to.
+
+**Consequences:** the term list renders one column per configured language, so
+the view adapts instead of hard-coding two. Removing a language that still has
+entries needs a rule — proposal: block it and point at the affected entries,
+rather than cascading a delete. Language codes stay ISO 639-1 and are
+validated against it, so the configured set cannot drift into free text.
+
+---
+
+## D15 — Authentication
+
+**Status:** Accepted — local accounts with session cookie (2026-08-03)
+
+`REQUIREMENTS.md` specifies six roles and "create initial Admin account", but
+says nothing about how anyone signs in — no mention of passwords, sessions,
+tokens, or external identity providers anywhere in the document.
+
+**Decision:** local accounts. Passwords hashed with Argon2id, authentication
+by HTTP-only session cookie, accounts created by an Admin. The setup wizard
+creates the first Admin. No self-registration: a self-hosted termbase with an
+open signup form is a liability, and inviting colleagues is a rare enough
+action to stay manual.
+
+**Consequences:** the `User` entity carries email (as the login), display
+name, password hash, role, and active flag. `created_by` and `assignee`
+reference it.
+
+Adding OIDC later is additive — nullable `issuer` and `subject` columns plus
+a callback route — so this is not a dead end. Session storage starts in the
+database, which keeps the deployment to one container without Redis.
+
+---
+
+## D16 — Full-text search across two database backends
+
+**Status:** Accepted — portable implementation for v1.0 (2026-08-03)
+
+Search has to cover terms, definitions, synonyms, and NoGo alternatives, on
+both SQLite and PostgreSQL. The two have nothing in common here: SQLite offers
+FTS5 virtual tables, PostgreSQL `tsvector` with language-aware stemming.
+
+**Decision:** one portable implementation for v1.0 — normalised, case- and
+diacritic-insensitive matching on prefixes and substrings, behind a service
+interface so the backend can be swapped without touching callers.
+
+**Consequences:** no stemming and no relevance ranking in v1.0. For German
+compounds this is a real limitation, and it is the reason the interface exists
+— PostgreSQL `tsvector` is the obvious upgrade once search quality becomes the
+complaint. The decisive argument against splitting now is support: the same
+query returning different results depending on the backend is a problem nobody
+wants to debug across two engines.
+
+Search must respect D10 — entries in progress are findable and badged, while
+exports and the published glossary stay approved-only.
