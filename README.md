@@ -52,7 +52,7 @@ uvicorn app.main:app --reload
 pytest
 ```
 
-**Frontend** (Node 20+):
+**Frontend** (Node 22.12+):
 
 ```bash
 cd frontend
@@ -67,6 +67,19 @@ override with `VITE_API_PROXY_TARGET`.
 
 All settings come from environment variables and are documented in
 [`.env.example`](.env.example). Backend variables use the `VERBARIUM_` prefix.
+
+## Troubleshooting
+
+**Frontend dependencies changed.** `node_modules` lives in an anonymous volume
+so the bind-mounted host directory cannot shadow it. After changing
+`package.json`, refresh it explicitly:
+
+```bash
+docker compose up --build --renew-anon-volumes frontend
+```
+
+**Start from a clean database.** `docker compose down -v` removes the SQLite
+and PostgreSQL volumes along with the containers.
 
 ## Tech stack
 
