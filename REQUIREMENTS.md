@@ -42,9 +42,13 @@ SQLite and PostgreSQL are both supported and selectable via configuration. SQLit
 
 Six roles with escalating permissions. Roles are global per workspace in v1; domain-scoped permissions are planned for v2.
 
+One instance holds exactly one workspace. Workspace configuration — name,
+languages, AI provider — is a single settings record, and a second team runs a
+second instance. → D8
+
 | Role | Permissions |
 |---|---|
-| **Viewer** | Read and search approved terms only |
+| **Viewer** | Read and search. Entries in progress are visible and clearly marked as not yet approved; exports and the published glossary contain approved entries only. → D10 |
 | **Contributor** | Submit term proposals (lands in review queue) |
 | **Editor** | Create, edit, and enrich term entries |
 | **Reviewer** | Fachliche Prüfung — recommends approval or rejection |
@@ -80,7 +84,7 @@ Each term is anchored to a language-independent concept. A concept holds all lan
 | Field | Required | Type | Notes |
 |---|---|---|---|
 | `id` | Auto | UUID | |
-| `domain` | No | Tag / Select | e.g. Marketing, Development, Legal — single or multi-valued is open → D9 |
+| `domains` | No | Tag[] | Multi-valued, stored as a join table — e.g. Marketing, Development, Legal → D9 |
 | `lifecycle` | Yes | Enum | Active, Deprecated → D7 |
 | `superseded_by` | No | FK | Successor concept when deprecated → D7 |
 | `created_by` | Auto | User ref | |
@@ -227,8 +231,8 @@ the second. → D12
 - **Gap filter:** "language missing" — filters otherwise only work on what
   exists, while the common management question is about what does not.
 - **Bulk selection:** Apply the transitions the user's role permits to a
-  selection. Needed in v1.0: a CSV import creates the need long before AI
-  extraction does.
+  selection. Deferred to v1.1 alongside AI batch review — in v1.0 the import
+  covers the mass case by choosing its target status per run (D11).
 - **Duplicate hint:** While entering a new term, show existing entries with
   similar terms or synonyms, including unapproved ones. Duplicates are the
   main data quality problem in a termbase.
@@ -267,8 +271,10 @@ reviewers do not duplicate each other's work. → D2, D12
 - Change history per term, review comments
 - AI Pull Mode (single term enrichment)
 - Search and filter
-- Entry management: term list with language columns, gap filter, bulk transitions, duplicate hint, "my proposals"
+- Entry management: term list with language columns, gap filter, duplicate hint, "my proposals"
 - Review queue scoped to the signed-in role, with assignment
+- Deprecation with successor reference
+- Entries in progress visible to all roles, marked as unapproved
 - Export: CSV + TBX
 - Import: CSV, JSON, TBX
 - UI in DE + EN
@@ -279,7 +285,7 @@ reviewers do not duplicate each other's work. → D2, D12
 ### v1.1 — Document Extraction
 - Upload PDF, DOCX, MD, TXT
 - AI extracts term candidates → Review Queue
-- Batch review and approval
+- Batch review and approval, including bulk transitions in the term list
 
 ### v1.2 — External Sources
 - Confluence API integration
@@ -303,20 +309,15 @@ reviewers do not duplicate each other's work. → D2, D12
 
 ## Open Questions / TBD
 
-Data model and entry management questions are tracked with their options and
-recommendations in `docs/DATA-MODEL-DECISIONS.md`. Still open there:
+Data model and entry management questions are tracked with their options,
+recommendations, and outcomes in `docs/DATA-MODEL-DECISIONS.md`. D1 and D7–D10
+are settled; D2–D6 and D11–D13 stand as recommendations.
 
-- **D1** Review status per language vs. per concept
-- **D7** Deprecation and supersession — v1.0 or v2
-- **D8** One workspace per instance, or several per instance
-- **D9** Domain single- or multi-valued
-- **D10** Whether entries in progress are visible outside the editorial roles
+Still open:
 
-Beyond the data model:
-
-- Domain-scoped permissions: define exact permission matrix for v2
+- Domain-scoped permissions for v2: with multi-valued domains (D9), define
+  whether access requires one matching domain or all of them
 - Confluence API authentication model
-- Multi-instance vs. single-instance deployment for large organizations (see D8)
 - Offline/air-gapped support requirements
 
 ---

@@ -13,14 +13,32 @@ which questions are still open.
 | Status | Meaning |
 |---|---|
 | `Accepted` | Decided — implement it this way |
-| `Proposed` | Recommendation, waiting for sign-off |
+| `Proposed` | Recommendation, no objection raised; will be built this way unless changed |
 | `Open` | Genuine product decision, no default |
+
+D1 and D7–D10 were decided on 2026-08-03 and carry a **Decision** note.
+
+| # | Question | Outcome |
+|---|---|---|
+| D1 | Status per concept or per language | Accepted — per language, on `TermEntry` |
+| D2 | Assignee | Proposed — on `TermEntry`, with a claim action |
+| D3 | Entry origin | Proposed — own field, not a status |
+| D4 | Concurrent edits | Proposed — `version`, optimistic locking |
+| D5 | Required fields | Proposed — enforced per status transition |
+| D6 | Rejection terminal? | Proposed — rework loop, mandatory comment |
+| D7 | Deprecation | Accepted — v1.0, with successor reference |
+| D8 | Workspace model | Accepted — one per instance |
+| D9 | Domain cardinality | Accepted — multi-valued, join table |
+| D10 | Work in progress visible | Accepted — visible and badged, exports stay approved-only |
+| D11 | Import and workflow | Proposed — target status chosen per import run |
+| D12 | Entry management views | Proposed — bulk selection deferred to v1.1, rest v1.0 |
+| D13 | Date filter semantics | Proposed — created or changed, defaulting to changed |
 
 ---
 
 ## D1 — Status granularity: per concept or per language
 
-**Status:** Open
+**Status:** Accepted — status per `TermEntry`, concept lifecycle separate (2026-08-03)
 
 `REQUIREMENTS.md` puts `status` on `ConceptEntry` only; `TermEntry` has no
 status of its own.
@@ -57,6 +75,11 @@ vouching for the English one.
 derived (not stored) or is replaced by the lifecycle field. Review queue,
 search visibility, and the language columns in the list view all key off the
 per-language status.
+
+**Open sub-question for implementation:** the roll-up shown on a concept needs
+a defined rule — most likely the lowest status across its languages, with
+missing languages counted as absent rather than as a status. Worth pinning
+down when the list view is built, not before.
 
 ---
 
@@ -161,7 +184,7 @@ get explained by email and the rationale is unfindable a year later.
 
 ## D7 — Deprecation and supersession
 
-**Status:** Open (scope: v1.0 or v2)
+**Status:** Accepted for v1.0 (2026-08-03)
 
 There is no delete, archive, or deprecate anywhere in the model. Terminology
 ages: a term that was correct for years gets replaced. *Rejected* means
@@ -171,17 +194,23 @@ Lookup is what suffers. Someone searching the old term finds nothing and
 either uses it anyway or files a duplicate proposal, when the system could
 have pointed them at the replacement.
 
-**Recommendation:** concept-level lifecycle `active | deprecated` plus
-optional `superseded_by` pointing at the successor concept. Deprecated
-entries stay searchable and render as "no longer used — see X". Hard deletion
-stays admin-only and rare, because the change history of a deleted entry is
-worth more than the row.
+**Decision:** concept-level lifecycle `active | deprecated` plus optional
+`superseded_by` pointing at the successor concept, in v1.0. Deprecated entries
+stay searchable and render as "no longer used — see X". Hard deletion stays
+admin-only and rare, because the change history of a deleted entry is worth
+more than the row.
+
+**Consequences:** deprecation is not a review status — a deprecated entry
+keeps whatever review status it had. Export needs a rule for whether
+deprecated entries are included (proposal: excluded from the glossary,
+included in TBX with the successor reference, since CAT tools benefit from
+knowing what not to use).
 
 ---
 
 ## D8 — Workspace model
 
-**Status:** Open — needs a product decision
+**Status:** Accepted — one workspace per instance (2026-08-03)
 
 `REQUIREMENTS.md` uses "workspace" throughout (roles are "global per
 workspace", admins configure "workspace name and languages", AI keys are "per
@@ -197,15 +226,21 @@ Retrofitting the second onto the first is a migration touching all data plus
 an audit of every query for missed scoping — the classic source of
 cross-tenant data leaks.
 
-**Recommendation:** decide explicitly now, in either direction. If unsure,
-single-workspace-per-instance fits "self-hosted first" and Docker Compose
-deployment, and a second team simply runs a second container.
+**Decision:** one workspace per instance. No `workspace_id` on any entity. A
+second team runs a second container, which matches "self-hosted first" and
+keeps the deployment story simple.
+
+**Consequences:** workspace configuration (name, languages, AI provider,
+encrypted keys) is a single settings record, enforced as a singleton — one
+row, fixed primary key. The setup wizard writes it on first run. Should
+multi-tenancy ever be needed, the migration path is a new instance plus
+export/import, not a schema change.
 
 ---
 
 ## D9 — Domain cardinality
 
-**Status:** Open — needs a product decision
+**Status:** Accepted — multi-valued (2026-08-03)
 
 `domain` is typed "Tag / Select" — one value or several is unspecified.
 
@@ -213,24 +248,39 @@ v2 plans domain-scoped permissions, which is where it becomes structural: if
 an entry can carry three domains and a user is only permitted one of them,
 the permission rules need an explicit answer (any-match or all-match).
 
-**Recommendation:** decide now, implement the storage accordingly (single
-column vs. join table), even if the permission logic waits for v2.
+**Decision:** a concept can carry several domains, stored as a join table
+(`concept_domains`) with domains as their own entity, so they can be renamed
+without touching every entry.
+
+**Consequences:** filtering by domain is a join, not a column comparison. The
+v2 permission rule — access on one matching domain or on all of them — stays
+open and is listed in `REQUIREMENTS.md`; any-match is the more common reading
+and the more permissive one, so it should be chosen deliberately rather than
+by default.
 
 ---
 
 ## D10 — Visibility of work in progress
 
-**Status:** Proposed
+**Status:** Accepted for v1.0 (2026-08-03)
 
 Viewers "read and search approved terms only". So while a term is being
 drafted and reviewed, nobody outside the editorial roles can see that it
 exists. The predictable result is a duplicate proposal for a term already in
 review — and duplicates are the main data quality problem in termbases.
 
-**Recommendation:** everyone can *find* entries in progress, clearly badged
-as not yet approved, while exports, the glossary, and the default search
-scope stay approved-only. This is a change to the Viewer role as specified,
-so it needs sign-off.
+**Decision:** everyone can *find* entries in progress, clearly badged as not
+yet approved. Exports, the published glossary, and the default search scope
+stay approved-only. The Viewer role in `REQUIREMENTS.md` was amended
+accordingly.
+
+**Consequences:** `notes` on `TermEntry` is described as "internal remarks"
+and would now be readable by Viewers. Either it stays visible to editorial
+roles only — the safer reading of "internal" — or the field is renamed. To be
+settled when the API's field-level visibility is built.
+
+This also makes the duplicate hint (D12) work as intended: it can only warn
+about entries the user is allowed to see.
 
 ---
 
@@ -271,7 +321,11 @@ absent.
 - **Review queue defaults to what my role can act on**, rather than offering
   a role filter the user has to set first. A reviewer opening the queue
   should not first wade past 200 drafts that are not theirs.
-- **Bulk selection** with the transitions the role permits.
+- **Bulk selection** with the transitions the role permits — deferred to v1.1,
+  where it joins AI batch review. This holds together only because the
+  importer picks its target status per run (D11): without that, v1.0 would
+  have no answer for approving a migrated glossary. If D11 changes, bulk
+  selection has to move back into v1.0.
 - **Duplicate hint at creation** — a similarity check on term and synonyms
   while typing, showing existing entries including unapproved ones (D10).
 - **"My proposals"** — a contributor needs to see the fate of what they
