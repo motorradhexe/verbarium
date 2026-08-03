@@ -55,6 +55,16 @@ jobs:
         working-directory: backend
         run: ruff check .
 
+      - name: Migrations apply, roll back, and re-apply
+        working-directory: backend
+        env:
+          VERBARIUM_DB_BACKEND: ${{ matrix.database }}
+          VERBARIUM_POSTGRES_HOST: localhost
+        run: |
+          alembic upgrade head
+          alembic downgrade base
+          alembic upgrade head
+
       - name: Test
         working-directory: backend
         env:

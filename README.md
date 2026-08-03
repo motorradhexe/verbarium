@@ -9,9 +9,11 @@ translators, and cross-functional teams. AI-ready, not FULL-AI: every feature
 works without an AI provider, and AI enriches where you configure it with your
 own API key.
 
-**Status: project scaffolding.** No features are implemented yet. See
-[`REQUIREMENTS.md`](REQUIREMENTS.md) for the full scope and roadmap, and
-[`STRUCTURE.md`](STRUCTURE.md) for the repository layout.
+**Status: early development.** The data model and migrations are in place; no
+API endpoints beyond the health check yet. See [`REQUIREMENTS.md`](REQUIREMENTS.md)
+for the full scope and roadmap, [`STRUCTURE.md`](STRUCTURE.md) for the
+repository layout, and [`docs/DATA-MODEL-DECISIONS.md`](docs/DATA-MODEL-DECISIONS.md)
+for why the model looks the way it does.
 
 ## Quick start
 
@@ -50,6 +52,7 @@ docker compose --profile postgres up
 cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
+alembic upgrade head
 uvicorn app.main:app --reload
 pytest
 ```

@@ -1,20 +1,16 @@
 """Database engine and session handling.
 
-No models exist yet — this module only establishes the connection layer so
-that SQLite and PostgreSQL are interchangeable from day one.
+Keeps SQLite and PostgreSQL interchangeable. The declarative base lives in
+`app.db.base`.
 """
 
 from collections.abc import Iterator
 from pathlib import Path
 
-from sqlalchemy import Engine, create_engine
-from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+from sqlalchemy import Engine, create_engine, event
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import get_settings
-
-
-class Base(DeclarativeBase):
-    """Declarative base for all future ORM models."""
 
 
 def _create_engine() -> Engine:
@@ -29,7 +25,19 @@ def _create_engine() -> Engine:
         # handed between threads.
         connect_args["check_same_thread"] = False
 
-    return create_engine(url, connect_args=connect_args, pool_pre_ping=True, future=True)
+    engine = create_engine(url, connect_args=connect_args, pool_pre_ping=True, future=True)
+
+    if url.startswith("sqlite"):
+        # SQLite ignores foreign keys unless asked, per connection. Without
+        # this, ON DELETE RESTRICT and CASCADE are silently no-ops and the two
+        # backends behave differently.
+        @event.listens_for(engine, "connect")
+        def _enable_foreign_keys(dbapi_connection, _connection_record):  # type: ignore[no-untyped-def]
+            cursor = dbapi_connection.cursor()
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.close()
+
+    return engine
 
 
 engine = _create_engine()
