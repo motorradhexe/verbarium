@@ -9,7 +9,17 @@
 services:
   backend:
     build: ./backend
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    # Migrations run before the server starts, so `docker compose up` on a
+    # fresh volume yields a usable instance rather than an empty database.
+    # The health check would not notice the difference — it only asks the
+    # connection whether it works, not whether the schema is there.
+    #
+    # Development convenience. A production deployment runs migrations as its
+    # own step, where a failure stops the rollout instead of restarting a
+    # container.
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     environment:
       VERBARIUM_ENVIRONMENT: ${VERBARIUM_ENVIRONMENT:-development}
       VERBARIUM_LOG_LEVEL: ${VERBARIUM_LOG_LEVEL:-info}

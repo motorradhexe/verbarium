@@ -198,10 +198,24 @@ web server, no bind mounts) is a separate concern and comes later.
 
 | Job | What it checks |
 |---|---|
-| `backend` | ruff and pytest, once against SQLite and once against PostgreSQL |
+| `backend` | ruff, migrations up/down/up, and pytest, once against SQLite and once against PostgreSQL |
+| `runtime-dependencies` | The app imports after `pip install .` without the dev extras |
 | `frontend` | `npm ci`, type check, production build, `npm audit` |
-| `stack` | `docker compose up` in both database configurations, asserting the health payload, the frontend shell, and the dev server proxy |
+| `stack` | `docker compose up` in both database configurations, asserting the health payload, that the schema exists, the frontend shell, and the dev server proxy |
 
 The `stack` job is the one that matters for "does it actually run": it builds
-the images, starts the compose stack, and fails if `/health` does not report
-the expected database as connected.
+the images, starts the compose stack, and fails if the instance is not usable.
+
+Two of these jobs exist because of failures that everything else missed:
+
+- `runtime-dependencies` — the backend job and every developer install the dev
+  extras, so a dependency declared in the wrong group only surfaces when the
+  image fails to start.
+- The stack job's setup check — `/health` only asks whether the connection
+  works. It answers `ok` against a database with no tables at all, so the
+  health check alone cannot tell a working instance from an empty one.
+
+The compose stack runs `alembic upgrade head` before starting the server, so
+`docker compose up` on a fresh volume gives a usable instance. A production
+deployment should run migrations as its own step instead, where a failure
+stops the rollout rather than restarting a container.
