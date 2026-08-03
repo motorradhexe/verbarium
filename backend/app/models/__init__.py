@@ -15,6 +15,7 @@ from app.models.enums import (
     TermStatus,
 )
 from app.models.history import ChangeHistoryEntry, ReviewComment
+from app.models.session import UserSession
 from app.models.term import TermEntry
 from app.models.user import User
 from app.models.workspace import SINGLETON_ID, Language, WorkspaceSettings
@@ -34,6 +35,7 @@ __all__ = [
     "TermEntry",
     "TermStatus",
     "User",
+    "UserSession",
     "WorkspaceSettings",
     "concept_domains",
 ]

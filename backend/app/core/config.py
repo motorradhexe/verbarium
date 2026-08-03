@@ -46,6 +46,15 @@ class Settings(BaseSettings):
             return [origin.strip() for origin in raw.split(",") if origin.strip()]
         return value
 
+    # --- Sessions ------------------------------------------------------
+    session_cookie_name: str = "verbarium_session"
+    session_lifetime_hours: int = 24 * 14
+    #: Must be true when served over HTTPS, which is every real deployment.
+    #: Off by default so that plain-HTTP local development works.
+    session_cookie_secure: bool = False
+    #: Minimum password length. No composition rules — length is what helps.
+    min_password_length: int = 12
+
     # --- Database ------------------------------------------------------
     # `sqlite` is the default for single-user and development setups,
     # `postgres` is recommended for team deployments.

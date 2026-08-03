@@ -19,6 +19,31 @@ class Role(StrEnum):
     APPROVER = "approver"
     ADMIN = "admin"
 
+    @property
+    def rank(self) -> int:
+        """Position in the hierarchy, Viewer lowest.
+
+        `REQUIREMENTS.md` calls the roles "escalating", so permissions are
+        treated as cumulative: an Approver can do everything an Editor can.
+        If a role ever needs a permission that a higher one lacks, this
+        ordering stops being enough and the checks need an explicit
+        permission matrix instead.
+        """
+        return _ROLE_ORDER.index(self)
+
+    def can_act_as(self, required: "Role") -> bool:
+        return self.rank >= required.rank
+
+
+_ROLE_ORDER = [
+    Role.VIEWER,
+    Role.CONTRIBUTOR,
+    Role.EDITOR,
+    Role.REVIEWER,
+    Role.APPROVER,
+    Role.ADMIN,
+]
+
 
 class TermStatus(StrEnum):
     """Review status. Sits on the term entry: each language runs its own

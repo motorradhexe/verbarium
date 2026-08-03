@@ -26,11 +26,16 @@ backend/
 ├── app/
 │   ├── main.py           App factory, middleware, router registration
 │   ├── api/
+│   │   ├── deps.py       Database session, signed-in user, role checks
 │   │   ├── router.py     Central router — feature routers register here
 │   │   └── routes/       One module per resource
-│   │       └── health.py GET /health
+│   │       ├── health.py GET /health
+│   │       ├── setup.py  First-run wizard
+│   │       ├── auth.py   Login, logout, own profile and password
+│   │       └── users.py  Account management, Admin only
 │   ├── core/
 │   │   ├── config.py     Settings from environment variables
+│   │   ├── security.py   Password hashing, session tokens
 │   │   └── languages.py  ISO 639-1 codes, generated
 │   ├── db/
 │   │   ├── base.py       Declarative base, naming convention, column helpers
@@ -41,9 +46,10 @@ backend/
 │   │   ├── user.py       Accounts
 │   │   ├── concept.py    Concepts, domains, their association
 │   │   ├── term.py       Term entries
-│   │   └── history.py    Change history, review comments
-│   ├── schemas/          Pydantic request/response schemas (empty)
-│   └── services/         Business logic, import/export, AI providers (empty)
+│   │   ├── history.py    Change history, review comments
+│   │   └── session.py    Server-side sessions
+│   ├── schemas/          Pydantic request/response schemas
+│   └── services/         Business logic, import/export, AI providers
 ├── migrations/           Alembic: env.py plus one file per revision
 ├── tests/                pytest suite, mirrors the app/ layout
 ├── alembic.ini
@@ -97,6 +103,45 @@ Both backends are first-class, which shapes the schema:
 Tests run against whichever backend is configured. On PostgreSQL they use a
 separate `<database>_test` database, created on first use — the suite drops and
 recreates every table, so it must never touch a working database.
+
+One difference bites outside the schema too: SQLite has no timezone type and
+returns naive datetimes. Timestamps are therefore normalised on the way out
+(`UtcDatetime` in `app/schemas/common.py`) and before any comparison
+(`ensure_utc` in `app/db/base.py`).
+
+## Authentication
+
+Local accounts, no self-registration. → D15
+
+| Piece | Where |
+|---|---|
+| Argon2id hashing, session tokens | `app/core/security.py` |
+| Login, sessions, password change | `app/services/auth.py` |
+| Signed-in user, role checks | `app/api/deps.py` |
+| First-run wizard | `app/services/setup.py` |
+
+The token in the cookie is 256 bits of randomness; only its SHA-256 is stored,
+so a leaked database yields no usable sessions. The cookie is HTTP-only and
+`SameSite=Lax`; set `VERBARIUM_SESSION_COOKIE_SECURE=true` behind HTTPS.
+
+Sessions live in the database so that logout, a password change, and
+deactivating an account all take effect immediately rather than at expiry.
+
+Routes declare what they need as a dependency:
+
+```python
+def endpoint(db: DbSession, user: CurrentUser): ...          # signed in
+def endpoint(db: DbSession, user: AdminUser): ...            # Admin
+router = APIRouter(dependencies=[Depends(require_role(Role.EDITOR))])
+```
+
+Roles are cumulative — an Approver can do everything an Editor can, per
+`Role.rank`. If a role ever needs a permission a higher one lacks, that
+ordering has to be replaced with an explicit permission matrix.
+
+**Not covered yet:** rate limiting on login. Argon2 makes each attempt
+expensive, which slows guessing considerably, but nothing stops an attacker
+from trying indefinitely.
 
 ## Frontend
 

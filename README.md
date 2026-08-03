@@ -9,8 +9,9 @@ translators, and cross-functional teams. AI-ready, not FULL-AI: every feature
 works without an AI provider, and AI enriches where you configure it with your
 own API key.
 
-**Status: early development.** The data model and migrations are in place; no
-API endpoints beyond the health check yet. See [`REQUIREMENTS.md`](REQUIREMENTS.md)
+**Status: early development.** Data model, migrations, authentication, and the
+first-run setup wizard are in place. Terminology features are next. See
+[`REQUIREMENTS.md`](REQUIREMENTS.md)
 for the full scope and roadmap, [`STRUCTURE.md`](STRUCTURE.md) for the
 repository layout, and [`docs/DATA-MODEL-DECISIONS.md`](docs/DATA-MODEL-DECISIONS.md)
 for why the model looks the way it does.
@@ -31,6 +32,27 @@ docker compose up
 
 Both services run with hot reload and bind-mount their source directory, so
 edits are picked up without a rebuild.
+
+### First run
+
+A fresh instance has no accounts. Create the workspace and the first Admin
+through the setup wizard, which closes itself once an account exists:
+
+```bash
+curl -X POST http://localhost:8000/api/setup \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "workspace_name": "Coffee Terminology",
+    "languages": [{"code": "de"}, {"code": "en"}],
+    "admin_email": "you@example.org",
+    "admin_display_name": "Your Name",
+    "admin_password": "a-long-passphrase-you-remember"
+  }'
+```
+
+Then sign in at `POST /api/auth/login`; the session arrives as an HTTP-only
+cookie. Further accounts are created by an Admin at `POST /api/users` — there
+is no self-registration.
 
 ### With PostgreSQL
 

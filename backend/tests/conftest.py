@@ -2,14 +2,22 @@ import uuid
 from collections.abc import Iterator
 
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.api.deps import get_db
 from app.core.config import get_settings
+from app.core.security import hash_password
 from app.db.base import Base
+from app.main import app
 from app.models import Concept, Language, TermEntry, User
 from app.models.enums import Role
+
+#: Long enough for the default minimum password length.
+ADMIN_PASSWORD = "correct-horse-battery-staple"
+USER_PASSWORD = "another-long-enough-passphrase"
 
 
 def _postgres_test_engine():
@@ -102,6 +110,36 @@ def concept(db: Session, user: User) -> Concept:
     db.add(entry)
     db.commit()
     return entry
+
+
+@pytest.fixture
+def client(db: Session) -> Iterator[TestClient]:
+    """A test client whose requests use the test database."""
+    app.dependency_overrides[get_db] = lambda: db
+    try:
+        with TestClient(app) as test_client:
+            yield test_client
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def admin(db: Session) -> User:
+    account = User(
+        email="admin@example.org",
+        display_name="Admin",
+        password_hash=hash_password(ADMIN_PASSWORD),
+        role=Role.ADMIN,
+    )
+    db.add(account)
+    db.commit()
+    return account
+
+
+def sign_in(client: TestClient, email: str, password: str) -> None:
+    """Log in, leaving the session cookie on the client."""
+    response = client.post("/api/auth/login", json={"email": email, "password": password})
+    assert response.status_code == 200, response.text
 
 
 def make_term(concept: Concept, user: User, language: str, term: str, **kwargs) -> TermEntry:
