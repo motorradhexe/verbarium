@@ -133,6 +133,15 @@ def update_concept(
     concept = _load(db, concept_id)
     try:
         concept_service.update_concept(db, concept, request, user)
+    except history_service.StaleVersion as conflict:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Someone else changed this entry — you edited version "
+                f"{conflict.expected}, it is now at {conflict.actual}. "
+                "Reload before saving."
+            ),
+        ) from None
     except concept_service.UnknownDomain as unknown:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

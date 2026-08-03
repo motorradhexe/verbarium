@@ -108,9 +108,11 @@ def update_term(db: Session, entry: TermEntry, request: TermEntryUpdate, user: U
     "Approved" badge has to mean somebody approved this wording, not an
     earlier one. → D19
     """
+    history.check_version(entry, request.version)
+
     before = history.snapshot(entry, TRACKED_FIELDS)
 
-    changes = request.model_dump(exclude_unset=True)
+    changes = request.model_dump(exclude_unset=True, exclude={"version"})
     for field, value in changes.items():
         setattr(entry, field, value)
 

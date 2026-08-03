@@ -171,6 +171,12 @@ def as_role(client: TestClient, accounts: dict[Role, User]):
     return sign_in_as
 
 
+def patch_term(client: TestClient, term_id: str, **fields):
+    """PATCH an entry, supplying the version it was read at. → D4"""
+    current = client.get(f"/api/terms/{term_id}").json()["version"]
+    return client.patch(f"/api/terms/{term_id}", json={"version": current, **fields})
+
+
 def make_term(concept: Concept, user: User, language: str, term: str, **kwargs) -> TermEntry:
     return TermEntry(
         id=uuid.uuid4(),

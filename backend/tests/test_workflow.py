@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Language, TermStatus
 from app.models.enums import Role
+from tests.conftest import patch_term
 
 
 @pytest.fixture
@@ -191,7 +192,7 @@ class TestTransitions:
         as_role(Role.EDITOR)
         term_id = first_term(make_concept(client))
 
-        client.patch(f"/api/terms/{term_id}", json={"status": "approved"})
+        patch_term(client, term_id, status="approved")
 
         assert client.get(f"/api/terms/{term_id}").json()["status"] == TermStatus.DRAFT
 
@@ -206,7 +207,7 @@ class TestReapproval:
         transition(client, term_id, "approve")
 
         as_role(Role.EDITOR)
-        response = client.patch(f"/api/terms/{term_id}", json={"definition": "Something else."})
+        response = patch_term(client, term_id, definition="Something else.")
 
         assert response.json()["status"] == TermStatus.DRAFT
 
@@ -218,7 +219,7 @@ class TestReapproval:
         transition(client, term_id, "approve")
 
         as_role(Role.EDITOR)
-        response = client.patch(f"/api/terms/{term_id}", json={"source": "ISO 3103"})
+        response = patch_term(client, term_id, source="ISO 3103")
 
         assert response.json()["status"] == TermStatus.APPROVED
 

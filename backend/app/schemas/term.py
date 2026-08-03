@@ -5,7 +5,7 @@ import uuid
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.enums import EntryOrigin, TermStatus
-from app.schemas.common import UtcDatetime
+from app.schemas.common import UtcDatetime, VersionedUpdate
 from app.services.workflow import Action
 
 
@@ -22,8 +22,8 @@ class TermEntryCreate(BaseModel):
     origin: EntryOrigin = EntryOrigin.MANUAL
 
 
-class TermEntryUpdate(BaseModel):
-    """Every field optional; only what is sent gets changed.
+class TermEntryUpdate(VersionedUpdate):
+    """Every field optional except the version; only what is sent gets changed.
 
     Status is not among them — it moves through the transition endpoint, so
     the workflow rules cannot be bypassed by a plain update.

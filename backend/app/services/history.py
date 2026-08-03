@@ -19,6 +19,27 @@ from app.models.user import User
 IGNORED_FIELDS = frozenset({"search_text", "version", "updated_at", "id"})
 
 
+class StaleVersion(Exception):
+    """The write was based on a version that has since moved on. → D4"""
+
+    def __init__(self, expected: int, actual: int) -> None:
+        super().__init__(f"expected version {expected}, current is {actual}")
+        self.expected = expected
+        self.actual = actual
+
+
+def check_version(entity: Any, expected: int) -> None:
+    """Refuse a write built on a stale read.
+
+    SQLAlchemy's `version_id_col` guards a session that held the object across
+    the change; it cannot help here, because each request loads the row fresh
+    and therefore always sees the current version. The client's version is the
+    only evidence of what it actually edited.
+    """
+    if entity.version != expected:
+        raise StaleVersion(expected=expected, actual=entity.version)
+
+
 def _render(value: Any) -> str | None:
     """One column value as text, so one table can record every type."""
     if value is None:

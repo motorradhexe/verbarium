@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.text import normalise
+from app.db.base import utcnow
 from app.models.concept import Concept, Domain
 from app.models.enums import ConceptLifecycle, HistoryEntityType, TermStatus
 from app.models.term import TermEntry
@@ -103,6 +104,8 @@ def create_concept(db: Session, request: ConceptCreate, user: User) -> Concept:
 
 
 def update_concept(db: Session, concept: Concept, request: ConceptUpdate, user: User) -> Concept:
+    history.check_version(concept, request.version)
+
     before = history.snapshot(concept, TRACKED_FIELDS)
     domains_before = sorted(domain.name for domain in concept.domains)
 
@@ -111,6 +114,12 @@ def update_concept(db: Session, concept: Concept, request: ConceptUpdate, user: 
 
     domains_after = sorted(domain.name for domain in concept.domains)
     if domains_before != domains_after:
+        # Touch the concept so the row itself is updated. Changing domains
+        # only writes the association table, which leaves `version` and
+        # `updated_at` untouched — and an optimistic lock that never advances
+        # is no lock at all.
+        concept.updated_at = utcnow()
+
         history.record_changes(
             db,
             entity_type=HistoryEntityType.CONCEPT,

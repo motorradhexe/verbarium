@@ -5,7 +5,7 @@ import uuid
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models.enums import ConceptLifecycle, TermStatus
-from app.schemas.common import UtcDatetime
+from app.schemas.common import UtcDatetime, VersionedUpdate
 from app.schemas.term import TermEntryCreate, TermEntryRead
 
 
@@ -38,7 +38,7 @@ class ConceptCreate(BaseModel):
         return self
 
 
-class ConceptUpdate(BaseModel):
+class ConceptUpdate(VersionedUpdate):
     domain_ids: list[uuid.UUID] | None = None
 
 

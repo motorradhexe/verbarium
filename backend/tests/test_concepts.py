@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Language, TermStatus
 from app.models.enums import Role
+from tests.conftest import patch_term
 
 
 @pytest.fixture
@@ -159,7 +160,7 @@ class TestSearch:
     def test_the_haystack_follows_an_edit(self, client: TestClient, termbase, as_role):
         as_role(Role.EDITOR)
         term_id = termbase["crema"]["term_entries"][0]["id"]
-        client.patch(f"/api/terms/{term_id}", json={"term": "Crema di caffè"})
+        patch_term(client, term_id, term="Crema di caffè")
 
         assert client.get("/api/concepts", params={"query": "caffe"}).json()["total"] == 1
 
@@ -311,7 +312,7 @@ class TestChangeHistory:
     def test_an_edit_records_the_old_and_new_value(self, client: TestClient, termbase, as_role):
         as_role(Role.EDITOR)
         term_id = termbase["crema"]["term_entries"][0]["id"]
-        client.patch(f"/api/terms/{term_id}", json={"term": "Crema di caffè"})
+        patch_term(client, term_id, term="Crema di caffè")
 
         change = client.get(f"/api/terms/{term_id}/history").json()[0]
 
@@ -322,7 +323,7 @@ class TestChangeHistory:
     def test_an_unchanged_field_produces_no_row(self, client: TestClient, termbase, as_role):
         as_role(Role.EDITOR)
         term_id = termbase["crema"]["term_entries"][0]["id"]
-        client.patch(f"/api/terms/{term_id}", json={"term": "Crema"})
+        patch_term(client, term_id, term="Crema")
 
         assert len(client.get(f"/api/terms/{term_id}/history").json()) == 1
 
@@ -339,7 +340,7 @@ class TestChangeHistory:
     def test_it_names_who_changed_it(self, client: TestClient, termbase, as_role):
         editor = as_role(Role.EDITOR)
         term_id = termbase["crema"]["term_entries"][0]["id"]
-        client.patch(f"/api/terms/{term_id}", json={"term": "Crema di caffè"})
+        patch_term(client, term_id, term="Crema di caffè")
 
         change = client.get(f"/api/terms/{term_id}/history").json()[0]
 
@@ -356,7 +357,7 @@ class TestChangeHistory:
         """History rows carry no foreign key to the entity for this reason."""
         as_role(Role.ADMIN)
         term_id = termbase["crema"]["term_entries"][0]["id"]
-        client.patch(f"/api/terms/{term_id}", json={"term": "Crema di caffè"})
+        patch_term(client, term_id, term="Crema di caffè")
         client.delete(f"/api/concepts/{termbase['crema']['id']}")
 
         from app.models import ChangeHistoryEntry
@@ -375,7 +376,7 @@ class TestEditingPermissions:
         ).json()
         term_id = concept["term_entries"][0]["id"]
 
-        assert client.patch(f"/api/terms/{term_id}", json={"term": "Kaffee"}).status_code == 200
+        assert patch_term(client, term_id, term="Kaffee").status_code == 200
 
     def test_a_contributor_may_not_edit_someone_else_s(
         self, client: TestClient, termbase, as_role
@@ -383,7 +384,7 @@ class TestEditingPermissions:
         as_role(Role.CONTRIBUTOR)
         term_id = termbase["crema"]["term_entries"][0]["id"]
 
-        response = client.patch(f"/api/terms/{term_id}", json={"term": "Crema di caffè"})
+        response = patch_term(client, term_id, term="Crema di caffè")
 
         assert response.status_code == 403
 
@@ -393,3 +394,83 @@ class TestEditingPermissions:
 
         as_role(Role.ADMIN)
         assert client.delete(f"/api/concepts/{termbase['crema']['id']}").status_code == 204
+
+
+class TestOptimisticLocking:
+    """Two editors on one entry must not overwrite each other. → D4
+
+    The model has carried a version column since the schema landed, but until
+    the API accepted one, every request loaded the row fresh and therefore
+    always saw the current version — so the guard never fired over HTTP.
+    """
+
+    def test_a_write_based_on_the_current_version_succeeds(
+        self, client: TestClient, termbase, as_role
+    ):
+        as_role(Role.EDITOR)
+        term_id = termbase["crema"]["term_entries"][0]["id"]
+        version = client.get(f"/api/terms/{term_id}").json()["version"]
+
+        response = client.patch(
+            f"/api/terms/{term_id}", json={"version": version, "term": "Crema di caffè"}
+        )
+
+        assert response.status_code == 200
+
+    def test_a_write_based_on_a_stale_read_is_refused(
+        self, client: TestClient, termbase, as_role
+    ):
+        as_role(Role.EDITOR)
+        term_id = termbase["crema"]["term_entries"][0]["id"]
+        stale = client.get(f"/api/terms/{term_id}").json()["version"]
+        patch_term(client, term_id, definition="Changed by someone else.")
+
+        response = client.patch(
+            f"/api/terms/{term_id}", json={"version": stale, "term": "Crema di caffè"}
+        )
+
+        assert response.status_code == 409
+        assert "Reload" in response.json()["detail"]
+
+    def test_the_refused_write_changed_nothing(self, client: TestClient, termbase, as_role):
+        as_role(Role.EDITOR)
+        term_id = termbase["crema"]["term_entries"][0]["id"]
+        stale = client.get(f"/api/terms/{term_id}").json()["version"]
+        patch_term(client, term_id, definition="Changed by someone else.")
+
+        client.patch(f"/api/terms/{term_id}", json={"version": stale, "term": "Overwritten"})
+
+        assert client.get(f"/api/terms/{term_id}").json()["term"] == "Crema"
+
+    def test_the_version_advances_with_every_write(self, client: TestClient, termbase, as_role):
+        as_role(Role.EDITOR)
+        term_id = termbase["crema"]["term_entries"][0]["id"]
+        before = client.get(f"/api/terms/{term_id}").json()["version"]
+
+        patch_term(client, term_id, term="Crema di caffè")
+
+        assert client.get(f"/api/terms/{term_id}").json()["version"] == before + 1
+
+    def test_the_version_is_required(self, client: TestClient, termbase, as_role):
+        """A lock check the client may omit is no lock at all."""
+        as_role(Role.EDITOR)
+        term_id = termbase["crema"]["term_entries"][0]["id"]
+
+        response = client.patch(f"/api/terms/{term_id}", json={"term": "Crema di caffè"})
+
+        assert response.status_code == 422
+
+    def test_concepts_are_guarded_too(self, client: TestClient, termbase, as_role):
+        as_role(Role.EDITOR)
+        concept_id = termbase["crema"]["id"]
+        stale = client.get(f"/api/concepts/{concept_id}").json()["version"]
+        client.patch(
+            f"/api/concepts/{concept_id}",
+            json={"version": stale, "domain_ids": [termbase["legal"]["id"]]},
+        )
+
+        response = client.patch(
+            f"/api/concepts/{concept_id}", json={"version": stale, "domain_ids": []}
+        )
+
+        assert response.status_code == 409

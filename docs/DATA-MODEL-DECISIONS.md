@@ -25,7 +25,7 @@ time; say so if you want any of them the other way.
 | D1 | Status per concept or per language | Accepted — per language, on `TermEntry` |
 | D2 | Assignee | Proposed — on `TermEntry`, with a claim action |
 | D3 | Entry origin | Proposed — own field, not a status |
-| D4 | Concurrent edits | Proposed — `version`, optimistic locking |
+| D4 | Concurrent edits | Proposed — `version` in the update payload, 409 on conflict |
 | D5 | Required fields | Proposed — enforced per status transition |
 | D6 | Rejection terminal? | Proposed — rework loop, mandatory comment |
 | D7 | Deprecation | Accepted — v1.0, with successor reference |
@@ -142,6 +142,22 @@ conflict the UI can surface ("someone else changed this entry").
 
 Cheap now, invasive later: it touches every write path and every update
 schema.
+
+**As implemented:** the version is a required field on update payloads, not an
+optional one — a check the client may omit is no lock at all, and any caller
+editing an entity has just read it. A mismatch returns 409 naming both
+versions.
+
+Two things only surfaced once it was wired up:
+
+- SQLAlchemy's `version_id_col` cannot carry this on its own. It guards a
+  session that held the object across the change, but each request loads the
+  row fresh and therefore always sees the current version. The client's
+  version is the only evidence of what was actually edited.
+- Changing a concept's domains writes the association table, not the concept
+  row, so neither `version` nor `updated_at` moved — the lock never advanced
+  for the one field `ConceptUpdate` can change. The concept is now touched
+  explicitly when its domains change.
 
 ---
 

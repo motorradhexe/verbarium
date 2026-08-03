@@ -64,7 +64,17 @@ def update_term(
             detail="Editing this entry requires the editor role or higher",
         )
 
-    term_service.update_term(db, entry, request, user)
+    try:
+        term_service.update_term(db, entry, request, user)
+    except history_service.StaleVersion as conflict:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Someone else changed this entry — you edited version "
+                f"{conflict.expected}, it is now at {conflict.actual}. "
+                "Reload before saving."
+            ),
+        ) from None
 
     return present_term(entry, user)
 

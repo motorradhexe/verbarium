@@ -159,6 +159,10 @@ edit to an approved entry returns it to Draft (D19).
 Status never moves through a plain update — only through
 `POST /api/terms/{id}/transition` — so the rules cannot be bypassed.
 
+Updates carry the version they were based on and are refused with 409 if the
+entity has moved on (D4). SQLAlchemy's `version_id_col` alone does not cover
+this: each request loads the row fresh, so it always sees the current version.
+
 **Not covered yet:** rate limiting on login. Argon2 makes each attempt
 expensive, which slows guessing considerably, but nothing stops an attacker
 from trying indefinitely.
