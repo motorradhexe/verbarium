@@ -10,6 +10,7 @@ gets built into.
 verbarium/
 ├── backend/            FastAPI application (Python 3.11+)
 ├── frontend/           React application (Vite + TypeScript)
+├── docs/               Design decisions and background
 ├── docker-compose.yml  Development stack: backend, frontend, optional PostgreSQL
 ├── .env.example        All environment variables, documented
 ├── REQUIREMENTS.md     Project context, decisions, roadmap
