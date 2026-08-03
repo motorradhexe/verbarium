@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Link, Outlet } from 'react-router-dom'
+import { Link, Outlet } from 'react-router'
 
 import { useSession } from '../auth/SessionContext'
 import { useI18n } from '../i18n'

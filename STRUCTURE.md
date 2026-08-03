@@ -188,10 +188,13 @@ frontend/
 └── package.json
 ```
 
-Three dependencies beyond React: `react-router-dom`, `vite`, `typescript`.
-No UI framework — the surface is small, and a dependency that dictates markup
-is hard to walk back. Styling is hand-written CSS with custom properties and
-a dark variant.
+Three dependencies beyond React: `react-router`, `vite`, `typescript`. No UI
+framework — the surface is small, and a dependency that dictates markup is
+hard to walk back. Styling is hand-written CSS with custom properties and a
+dark variant.
+
+Routing imports come from `react-router`, not `react-router-dom`: the latter
+stops at 7.x, and everything moved into `react-router` for v8.
 
 **State.** Plain `useState` and `useEffect` against the API client; no data
 layer. Filters live in the URL, so a filtered view can be sent to a colleague
@@ -215,6 +218,12 @@ text in a German interface. The one case the UI can anticipate — a missing
 reason on a rejection — is phrased locally; the rest falls through, because
 the backend's wording is specific enough to be worth showing. A proper fix
 means error codes the frontend can translate.
+
+**`npm audit --audit-level=high` is a hard gate.** It can turn the build red
+without anything changing here, when a new advisory lands against a
+transitive dependency. That is the cost of the gate and it is worth paying:
+it is what caught the router advisory that shipped with the first version of
+this interface.
 
 ### Frontend tests
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router'
 
 import { api, type ConceptFilters } from '../api/client'
 import type { ConceptPage, Domain, TermStatus } from '../api/types'
