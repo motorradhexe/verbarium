@@ -1,35 +1,55 @@
-import { useEffect, useState } from 'react'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 
-type BackendState = 'checking' | 'online' | 'offline'
+import { SessionProvider, useSession } from './auth/SessionContext'
+import { Layout } from './components/Layout'
+import { Loading } from './components/Feedback'
+import { LocaleProvider } from './i18n'
+import { ConceptDetail } from './pages/ConceptDetail'
+import { Login } from './pages/Login'
+import { NewConcept } from './pages/NewConcept'
+import { Setup } from './pages/Setup'
+import { TermList } from './pages/TermList'
 
-export default function App() {
-  const [backend, setBackend] = useState<BackendState>('checking')
+/** Decides what the app shows before any route matches.
+ *
+ *  Three states, in order: still asking the backend, an instance with no
+ *  accounts at all, and nobody signed in. Only past those does the router
+ *  take over.
+ */
+function Gate() {
+  const { user, loading, needsSetup } = useSession()
 
-  useEffect(() => {
-    const controller = new AbortController()
+  if (loading) {
+    return (
+      <Layout>
+        <Loading />
+      </Layout>
+    )
+  }
 
-    fetch('/health', { signal: controller.signal })
-      .then((response) => (response.ok ? setBackend('online') : setBackend('offline')))
-      .catch(() => {
-        if (!controller.signal.aborted) {
-          setBackend('offline')
-        }
-      })
-
-    return () => controller.abort()
-  }, [])
+  if (needsSetup) return <Layout><Setup /></Layout>
+  if (!user) return <Layout><Login /></Layout>
 
   return (
-    <main className="shell">
-      <h1>Verbarium</h1>
-      <p className="tagline">Terminology Management for People Who Care About Words</p>
-      <p className="note">
-        Project scaffolding. No features yet — see <code>REQUIREMENTS.md</code> for the roadmap.
-      </p>
-      <p className={`status status--${backend}`}>
-        Backend:{' '}
-        {backend === 'checking' ? 'checking…' : backend === 'online' ? 'reachable' : 'unreachable'}
-      </p>
-    </main>
+    <Routes>
+      <Route element={<Layout />}>
+        <Route index element={<TermList />} />
+        <Route path="concepts/new" element={<NewConcept />} />
+        <Route path="concepts/:id" element={<ConceptDetail />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Route>
+    </Routes>
+  )
+}
+
+export default function App() {
+  return (
+    <LocaleProvider>
+      <BrowserRouter>
+        <SessionProvider>
+          <Gate />
+        </SessionProvider>
+      </BrowserRouter>
+    </LocaleProvider>
   )
 }

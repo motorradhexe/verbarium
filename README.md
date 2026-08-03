@@ -9,10 +9,11 @@ translators, and cross-functional teams. AI-ready, not FULL-AI: every feature
 works without an AI provider, and AI enriches where you configure it with your
 own API key.
 
-**Status: early development.** Data model, migrations, authentication, the
-setup wizard, and terminology management — concepts, term entries per language,
-the status workflow, change history, search and filters — are in place. Import,
-export, and AI enrichment are next. See
+**Status: early development.** Usable end to end: set up an instance, sign in,
+create concepts with an entry per language, move them through the review
+workflow, and find them again through search, filters, and the gap view. The
+interface is available in German and English. Import, export, and AI
+enrichment are next. See
 [`REQUIREMENTS.md`](REQUIREMENTS.md)
 for the full scope and roadmap, [`STRUCTURE.md`](STRUCTURE.md) for the
 repository layout, and [`docs/DATA-MODEL-DECISIONS.md`](docs/DATA-MODEL-DECISIONS.md)
@@ -37,24 +38,11 @@ edits are picked up without a rebuild.
 
 ### First run
 
-A fresh instance has no accounts. Create the workspace and the first Admin
-through the setup wizard, which closes itself once an account exists:
+Open http://localhost:5173. A fresh instance has no accounts, so the setup
+wizard appears: name the workspace, choose the content languages, and create
+the first Admin. It closes itself once an account exists.
 
-```bash
-curl -X POST http://localhost:8000/api/setup \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "workspace_name": "Coffee Terminology",
-    "languages": [{"code": "de"}, {"code": "en"}],
-    "admin_email": "you@example.org",
-    "admin_display_name": "Your Name",
-    "admin_password": "a-long-passphrase-you-remember"
-  }'
-```
-
-Then sign in at `POST /api/auth/login`; the session arrives as an HTTP-only
-cookie. Further accounts are created by an Admin at `POST /api/users` — there
-is no self-registration.
+Further accounts are created by an Admin — there is no self-registration.
 
 ### With PostgreSQL
 

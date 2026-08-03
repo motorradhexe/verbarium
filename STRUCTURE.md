@@ -172,23 +172,61 @@ from trying indefinitely.
 ```
 frontend/
 ├── src/
-│   ├── main.tsx    Entry point, mounts <App>
-│   ├── App.tsx     Application shell (placeholder page)
-│   └── index.css   Global styles
+│   ├── App.tsx          Router and the gate: setup → login → app
+│   ├── api/
+│   │   ├── client.ts    Fetch wrapper, ApiError, endpoint functions
+│   │   └── types.ts     Mirrors the backend schemas
+│   ├── auth/
+│   │   └── SessionContext.tsx  Signed-in user, role checks
+│   ├── i18n/
+│   │   ├── strings.ts   German and English
+│   │   └── index.tsx    Provider, language detection
+│   ├── components/      Layout, badges, loading and error states
+│   └── pages/           Setup, Login, TermList, ConceptDetail, EntryEditor
 ├── index.html
-├── vite.config.ts  Dev server, /api and /health proxy to the backend
-├── tsconfig*.json
-├── Dockerfile
+├── vite.config.ts       Dev server, /api and /health proxy to the backend
 └── package.json
 ```
 
-No UI framework, router, or state management is chosen yet — deliberately.
-As the UI grows, the expected layout is `src/components/` (reusable
-presentational pieces), `src/pages/` (route-level views), `src/api/` (backend
-client), `src/i18n/` (DE/EN translations, per `REQUIREMENTS.md`).
+Three dependencies beyond React: `react-router-dom`, `vite`, `typescript`.
+No UI framework — the surface is small, and a dependency that dictates markup
+is hard to walk back. Styling is hand-written CSS with custom properties and
+a dark variant.
 
-The dev server proxies `/api` and `/health` to the backend, so frontend code
-uses relative URLs and never needs to know the backend host.
+**State.** Plain `useState` and `useEffect` against the API client; no data
+layer. Filters live in the URL, so a filtered view can be sent to a colleague
+and survives a reload.
+
+**Language.** Interface strings are a plain object keyed by locale, not a
+library: two languages with a few hundred keys need no plural rules or
+loader. `Translations` is derived from the German set with the literal types
+widened, so a missing English key is a compile error while the wording stays
+free. The language follows the browser until the user chooses in the header.
+
+Interface language and content language are separate axes — someone reading
+the interface in German still maintains English terms. → D14
+
+**Roles in the UI.** `availableActions` decides which workflow buttons an
+entry offers. The backend is the authority and refuses anything else; the
+frontend mirrors the rules so it does not offer a button that always fails.
+
+**Known gap:** the backend answers in English, so an API refusal shows English
+text in a German interface. The one case the UI can anticipate — a missing
+reason on a rejection — is phrased locally; the rest falls through, because
+the backend's wording is specific enough to be worth showing. A proper fix
+means error codes the frontend can translate.
+
+### Frontend tests
+
+`npm test` runs Vitest over the logic that is worth pinning down on its own:
+the API error extraction (FastAPI returns a *list* for validation errors, which
+would otherwise render as `[object Object]`), the role comparison, translation
+key parity between the two languages, and which workflow actions an entry
+offers.
+
+Components are deliberately thin so that this covers the parts that break.
+The whole flow — setup, login, creating a concept, the workflow, filters — is
+exercised by driving a real browser against a running stack.
 
 ## Configuration
 
