@@ -16,6 +16,7 @@ venv/
 *.sqlite
 *.sqlite3
 backend/data/
+/data/
 
 # Node
 node_modules/
