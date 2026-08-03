@@ -1,0 +1,79 @@
+# Verbarium — development stack.
+#
+#   docker compose up                      backend + frontend, SQLite
+#   docker compose --profile postgres up    ... plus PostgreSQL
+#
+# All configuration comes from `.env` (copy `.env.example`). Values below are
+# defaults, so the stack also runs with no `.env` file present.
+
+services:
+  backend:
+    build: ./backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      VERBARIUM_ENVIRONMENT: ${VERBARIUM_ENVIRONMENT:-development}
+      VERBARIUM_LOG_LEVEL: ${VERBARIUM_LOG_LEVEL:-info}
+      VERBARIUM_CORS_ORIGINS: ${VERBARIUM_CORS_ORIGINS:-http://localhost:5173}
+      VERBARIUM_DB_BACKEND: ${VERBARIUM_DB_BACKEND:-sqlite}
+      VERBARIUM_DATABASE_URL: ${VERBARIUM_DATABASE_URL:-}
+      VERBARIUM_SQLITE_PATH: /app/data/verbarium.db
+      VERBARIUM_POSTGRES_HOST: ${VERBARIUM_POSTGRES_HOST:-db}
+      VERBARIUM_POSTGRES_PORT: ${VERBARIUM_POSTGRES_PORT:-5432}
+      VERBARIUM_POSTGRES_USER: ${VERBARIUM_POSTGRES_USER:-verbarium}
+      VERBARIUM_POSTGRES_PASSWORD: ${VERBARIUM_POSTGRES_PASSWORD:-verbarium}
+      VERBARIUM_POSTGRES_DB: ${VERBARIUM_POSTGRES_DB:-verbarium}
+    ports:
+      - "${VERBARIUM_BACKEND_PORT:-8000}:8000"
+    volumes:
+      - ./backend:/app
+      - backend_data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+        # Only enforced when the `postgres` profile is active.
+        required: false
+    healthcheck:
+      test:
+        ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    environment:
+      VITE_API_PROXY_TARGET: http://backend:8000
+      VITE_USE_POLLING: ${VITE_USE_POLLING:-false}
+    ports:
+      - "${VERBARIUM_FRONTEND_PORT:-5173}:5173"
+    volumes:
+      - ./frontend:/app
+      # Keep the image's node_modules — the host directory must not shadow it.
+      - /app/node_modules
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    profiles: ["postgres"]
+    environment:
+      POSTGRES_USER: ${VERBARIUM_POSTGRES_USER:-verbarium}
+      POSTGRES_PASSWORD: ${VERBARIUM_POSTGRES_PASSWORD:-verbarium}
+      POSTGRES_DB: ${VERBARIUM_POSTGRES_DB:-verbarium}
+    ports:
+      - "${VERBARIUM_POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${VERBARIUM_POSTGRES_USER:-verbarium}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  backend_data:
+  postgres_data:
